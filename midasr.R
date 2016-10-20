@@ -84,10 +84,6 @@ get_meta_info<-function(raw_data){
 month_meta<-get_meta_info(data_month)
 quarter_meta<-get_meta_info(data_quarter)
 
-# random select some data for analyse
-regress_meta<-cbind(quarter_meta[,1],month_meta[,1:5])
-colnames(regress_meta)[1]<-colnames(quarter_meta)[1]
-
 
 # change the data to ts
 change_to_ts<-function(single_data,single_meta){
@@ -104,7 +100,7 @@ change_to_ts<-function(single_data,single_meta){
   return(ts_data)
 }
 
-# change the time series data to stationaryd <- d[!is.na(d)]
+# change the time series data to stationary
 
 change_to_stationary<-function(single_ts_data){
   p_value<-adf.test(single_ts_data[!is.na(single_ts_data)])$p.value
@@ -117,5 +113,20 @@ change_to_stationary<-function(single_ts_data){
   return(single_ts_data)
 }
 
+
+# random select some data for analyse
+regress_meta<-cbind(quarter_meta[,1],month_meta[,1:5])
+colnames(regress_meta)[1]<-colnames(quarter_meta)[1]
+
+# prepare data for the midas analyse
+
+midas_analyse<-function(data_month,data_quarter,regress_meta){
+  if (regress_meta["type",]==4){
+    name<-names(which(regress_meta["type",]==4))
+    y<-change_to_ts(data_quarter[,name],regress_meta[,regress_meta["type",]==4])
+    assign(name,y)
+  }
+  
+}
 
 
