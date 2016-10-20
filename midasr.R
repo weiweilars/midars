@@ -104,5 +104,18 @@ change_to_ts<-function(single_data,single_meta){
   return(ts_data)
 }
 
+# change the time series data to stationaryd <- d[!is.na(d)]
+
+change_to_stationary<-function(single_ts_data){
+  p_value<-adf.test(single_ts_data[!is.na(single_ts_data)])$p.value
+  
+  while(p_value>0.05){
+    single_ts_data<-diff(single_ts_data)
+    p_value<-adf.test(single_ts_data[!is.na(single_ts_data)])$p.value
+  }
+  
+  return(single_ts_data)
+}
+
 
 
