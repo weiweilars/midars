@@ -139,8 +139,16 @@ colnames(regress_meta)[1]<-colnames(quarter_meta)[1]
 # prepare data for the midas analyse and forecasting
 
 midas_analyse<-function(data_month,data_quarter,regress_meta){
+  
   quarter_index<-which(regress_meta["type",]==4)
   month_index<-which(regress_meta["type",]==12)
+  
+  temp_to_get_end<-regress_meta[,which.min(regress_meta["end_date",])]
+  end<-c(temp_to_get_end["end_year"],temp_to_get_end["end_month"])
+  
+  temp_to_get_start<-regress_meta[,which.max(regress_meta["end_date",])]
+  start<-c(temp_to_get_start["start_year"],temp_to_get_start["start_month"])
+  
   
   for (i in 1:length(quarter_index)){
     name<-names(quarter_index[i])
@@ -153,8 +161,8 @@ midas_analyse<-function(data_month,data_quarter,regress_meta){
     data_temp<-change_to_stationary(data_month[,name])$stationary_data
     assign(name,ts(data_temp,end=c(data_month[nrow(data_month),"YEAR"],data_month[nrow(data_month),"MONTH"]), frequency=regress_meta[,name]["type"]))  
   }
-  
-  
+ 
+
 }
 
 
