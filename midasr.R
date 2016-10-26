@@ -11,6 +11,15 @@ data_quarter<-data.matrix(read_excel("//home/weiwei/Documents/Uppsala/midars/dat
 # monthly data:
 data_month<-data.matrix(read_excel("//home/weiwei/Documents/Uppsala/midars/data.xlsx",2))
 
+# modify quater data:
+date_quarter<-as.POSIXct(paste(data_quarter[,"YEAR"],data_quarter[,"MONTH"],data_quarter[,"DAY"], sep = "-"))
+data_quarter<-data_quarter[,-1:-3]
+
+# modify month data:
+date_month<-as.POSIXct(paste(data_month[,"YEAR"],data_month[,"MONTH"],data_month[,"DAY"], sep = "-"))
+data_month<-data_month[,-1:-3]
+
+
 # meta data: (i)
 ##################################
 # return
@@ -148,6 +157,8 @@ midas_analyse<-function(data_month,data_quarter,regress_meta){
   
   temp_to_get_start<-regress_meta[,which.max(regress_meta["end_date",])]
   start<-c(temp_to_get_start["start_year"],temp_to_get_start["start_month"])
+  
+  
   
   
   for (i in 1:length(quarter_index)){
