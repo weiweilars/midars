@@ -55,9 +55,9 @@ get_meta_info<-function(raw_data){
   month_diff=ceiling(day_diff/31)
   
   if (day_diff<2) {data_type=0
-  } else if (month_diff<2) {data_type=1
+  } else if (month_diff<2) {data_type=12
   } else if (month_diff<4) {data_type=4
-  } else {data_type=12}
+  } else {data_type=1}
   
   
   # find the start date and end date of the data
@@ -67,20 +67,23 @@ get_meta_info<-function(raw_data){
     meta_info[col_names[i]]<-c(raw_data[start_index,1],raw_data[end_index,1])
   }
   
-  list(type=data_type,meta_info=meta_info)
+  list(type=data_type,meta_info=as.data.frame(t(meta_info)))
 }
 
 ####################################################################################
-# result of the get_meta_info
+# Example of the result : get_meta_info(data_quarter)
 # $type
-# [1] 4
+# [1] 4                     0:daily data, 1:month data, 4:quarter data, 12:year data
 
 # $meta_info
-#                   BNP        KPI       KPIF       HIKP
-# start_date 1995-02-01 1995-02-01 1995-02-01 1996-02-01
-# end_date   2011-11-01 2012-05-01 2012-05-01 2012-05-01
+#      start_date   end_date
+# BNP  1995-02-01 2011-11-01
+# KPI  1995-02-01 2012-05-01
+# KPIF 1995-02-01 2012-05-01
+# HIKP 1996-02-01 2012-05-01
 ####################################################################################
 
+# ge the meta information about the month data and quarter data
 month_meta<-get_meta_info(data_month)
 quarter_meta<-get_meta_info(data_quarter)
 
@@ -115,56 +118,60 @@ change_to_ts<-function(single_data){
 
 change_to_stationary<-function(single_ts_data){
   
+  data<-as.matrix(single_ts_data)
   # check the p_value of the stationary test, null hypothesis is non-stationary
   
-  p_value<-adf.test(single_ts_data[!is.na(single_ts_data)])$p.value
+  p_value<-adf.test(data[!is.na(single_ts_data)])$p.value
   
   # differentiate the data to stationary 
   i<-0
   while(p_value>0.05){
-    single_ts_data<-diff(single_ts_data)
-    p_value<-adf.test(single_ts_data[!is.na(single_ts_data)])$p.value
+    data<-diff(data)
+    p_value<-adf.test(data[!is.na(data)])$p.value
     i<-i+1
   }
   
-  list(diff_order=i, stationary_data=single_ts_data)
+  list(diff_order=i, stationary_data=data.frame(data))
 }
 
 
-# random select some data for analyse
-
-regress_meta<-cbind(quarter_meta[,1],month_meta[,1:5])
-colnames(regress_meta)[1]<-colnames(quarter_meta)[1]
+# random select some data for analyse (choose some data)
+regress_meta<-rbind(quarter_meta$meta_info[1,],month_meta$meta_info[1:5,])
+time_type<-c(4,rep(12,5))
+predict_type<-c("predict",rep("explain",5))                     
+regress_meta<-cbind(regress_meta,time_type,predict_type)
 
 # prepare data for the midas analyse and forecasting
 
 midas_analyse<-function(data_month,data_quarter,regress_meta){
   
-  quarter_index<-which(regress_meta["type",]==4)
-  month_index<-which(regress_meta["type",]==12)
   
-  temp_to_get_end<-regress_meta[,which.min(regress_meta["end_date",])]
-  end<-c(temp_to_get_end["end_year"],temp_to_get_end["end_month"])
+  quarter_names<-rownames(regress_meta)[regress_meta$type==4]
+  month_names<-rownames(regress_meta)[regress_meta$type==12]
   
-  temp_to_get_start<-regress_meta[,which.max(regress_meta["end_date",])]
-  start<-c(temp_to_get_start["start_year"],temp_to_get_start["start_month"])
+  # find the predict interval for X
+  predict_date<-regress_meta$end_date[which(regress_meta$predict_type=="predict")]
+  
+  # choose the parameters for every window
+  end_month<-regress_meta$end_date[which.min(regress_meta$end_date)]
+  start<-regress_meta$start_date[which.max(regress_meta$start_date)]
   
   
-  
-  
-  for (i in 1:length(quarter_index)){
-    name<-names(quarter_index[i])
-    data_temp<-change_to_stationary(data_quarter[,name])$stationary_data
-    assign(name,ts(data_temp,end=c(data_quarter[nrow(data_quarter),"YEAR"],ceiling(data_quarter[nrow(data_quarter),"MONTH"]/3)), frequency=regress_meta[,name]["type"]))
+  for (i in 1:length(quarter_names)){
+    data_temp<-change_to_stationary(data_quarter[quarter_names[i]])$stationary_data
+    end_year=as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%y"))
+    end_quarter=ceiling(as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%m"))/3)
+    assign(quarter_names[i],ts(data_temp,end=c(end_year,end_quarter), frequency=regress_meta[quarter_names[i],]$type))
   }
   
-  for (i in 1:length(month_index)){
-    name<-names(month_index[i])
-    data_temp<-change_to_stationary(data_month[,name])$stationary_data
-    assign(name,ts(data_temp,end=c(data_month[nrow(data_month),"YEAR"],data_month[nrow(data_month),"MONTH"]), frequency=regress_meta[,name]["type"]))  
+  for (i in 1:length(month_names)){
+    data_temp<-change_to_stationary(data_month[month_names[i]])$stationary_data
+    end_year=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%y"))
+    end_month=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%m"))
+    assign(month_names[i],ts(data_temp,end=c(end_year,end_month), frequency=regress_meta[month_names[i],]$type))
   }
- 
-
+  
+  
 }
 
 
