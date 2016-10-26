@@ -6,23 +6,26 @@
 #library("readxl")
 
 # quarterly data: 
-data_quarter<-data.matrix(read_excel("//home/weiwei/Documents/Uppsala/midars/data.xlsx",1))
+# YEAR, MONTH, DAY, the name of DATA (column name)
+import_data_quarter<-data.matrix(read_excel("//home/weiwei/Documents/Uppsala/midars/data.xlsx",1))
 
 # monthly data:
-data_month<-data.matrix(read_excel("//home/weiwei/Documents/Uppsala/midars/data.xlsx",2))
+# YEAR, MONTH, DAY, the name of DATA (column name)
+import_data_month<-data.matrix(read_excel("//home/weiwei/Documents/Uppsala/midars/data.xlsx",2))
 
 # modify quater data:
-date_quarter<-as.POSIXct(paste(data_quarter[,"YEAR"],data_quarter[,"MONTH"],data_quarter[,"DAY"], sep = "-"))
-data_quarter<-data_quarter[,-1:-3]
+date_quarter<-as.POSIXct(paste(import_data_quarter[,"YEAR"],import_data_quarter[,"MONTH"],import_data_quarter[,"DAY"], sep = "-"))
+data_quarter<-data.frame(DATE=date_quarter,import_data_quarter[,-1:-3])
 
 # modify month data:
-date_month<-as.POSIXct(paste(data_month[,"YEAR"],data_month[,"MONTH"],data_month[,"DAY"], sep = "-"))
-data_month<-data_month[,-1:-3]
+date_month<-as.POSIXct(paste(import_data_month[,"YEAR"],import_data_month[,"MONTH"],import_data_month[,"DAY"], sep = "-"))
+data_month<-data.frame(DATE=date_month,import_data_month[,-1:-3])
 
 
 # meta data: (i)
 ##################################
 # return
+
 # start_year
 # start_month
 # start_day
@@ -35,59 +38,47 @@ data_month<-data_month[,-1:-3]
 
 get_meta_info<-function(raw_data){
   
-  # Column and raw numbers  (The first four columns of raw data are Date,Year,Month,Day)
+  # the columns and rows of the data
   c_num<-ncol(raw_data)
   r_num<-nrow(raw_data)
+  col_names<-colnames(raw_data)
+
+  # intialized the meta_info
+  meta_info = data.frame(matrix("NA", ncol = c_num-1, nrow = 2)) 
+  rownames(meta_info)=c("start_date","end_date")
+  colnames(meta_info)=col_names[-1]
   
-  # Initialized return value
-  meta_info<-matrix(0,nrow=9,ncol=c_num-4)
-  meta_name<-rep(0,c_num-4)
+  # Get the type of the data 
+  # month, quarter, year, day
+  # right now we only check those four data type, not down to hours
+  day_diff=as.numeric(difftime(raw_data[2,1],raw_data[1,1]))
+  month_diff=ceiling(day_diff/31)
   
-  # check the data information about the name, start date, and end date, property of the data
-  for (i in 5:c_num){
-    # using the numeric value of date to find the start date and end date of data
-    
-    dateRaw<-raw_data[,1]*!is.na(raw_data[,i])
-    start_index<-min(which(!dateRaw==0))
-    end_index<-max(which(!dateRaw==0))
-    meta_info[1,i-4]<-raw_data[start_index,1]
-    meta_info[2,i-4]<-raw_data[start_index,2]
-    meta_info[3,i-4]<-raw_data[start_index,3]
-    meta_info[4,i-4]<-raw_data[start_index,4]
-    meta_info[5,i-4]<-raw_data[end_index,1]
-    meta_info[6,i-4]<-raw_data[end_index,2]
-    meta_info[7,i-4]<-raw_data[end_index,3]
-    meta_info[8,i-4]<-raw_data[end_index,4]
-    
-    count_year<-meta_info[6,i-4]-meta_info[2,i-4]
-    average_data_per_year<-sum(!is.na(raw_data[,i]))/count_year
-    
-    if (average_data_per_year<2) {
-      meta_info[9,i-4]<-1
-    } else if (average_data_per_year<6){ 
-      meta_info[9,i-4]<-4
-    } else {
-      meta_info[9,i-4]<-12
-    }
-    
+  if (day_diff<2) {data_type=0
+  } else if (month_diff<2) {data_type=1
+  } else if (month_diff<4) {data_type=4
+  } else {data_type=12}
+  
+  
+  # find the start date and end date of the data
+  for (i in 2:c_num){
+    start_index<-min(which(!is.na(raw_data[,i])))
+    end_index<-max(which(!is.na(raw_data[,i])))
+    meta_info[col_names[i]]<-c(raw_data[start_index,1],raw_data[end_index,1])
   }
-  colnames(meta_info)<-colnames(raw_data)[5:c_num]
-  rownames(meta_info)<-c("start_date","start_year","start_month","start_day","end_date","end_year","end_month","end_day","type")
-  return(meta_info)
+  
+  list(type=data_type,meta_info=meta_info)
 }
 
 ####################################################################################
-# get the meta information about data (here is example)
-#              BNP kibar1 kibar2 kibar3 kibar4 kibar5
-#start_date  34731  36526  35096  35096  35096  36526
-#start_year   1995   2000   1996   1996   1996   2000
-#start_month     2      1      2      2      2      1
-#start_day       1      1      1      1      1      1
-#end_date    40848  41000  41000  41000  41000  41000
-#end_year     2011   2012   2012   2012   2012   2012
-#end_month      11      4      4      4      4      4
-#end_day         1      1      1      1      1      1
-#type            4      1      1      1      1      1   (1:month,4:quarter,12:year)
+# result of the get_meta_info
+# $type
+# [1] 4
+
+# $meta_info
+#                   BNP        KPI       KPIF       HIKP
+# start_date 1995-02-01 1995-02-01 1995-02-01 1996-02-01
+# end_date   2011-11-01 2012-05-01 2012-05-01 2012-05-01
 ####################################################################################
 
 month_meta<-get_meta_info(data_month)
