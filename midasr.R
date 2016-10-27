@@ -21,6 +21,71 @@ data_quarter<-data.frame(DATE=date_quarter,import_data_quarter[,-1:-3])
 date_month<-as.POSIXct(paste(import_data_month[,"YEAR"],import_data_month[,"MONTH"],import_data_month[,"DAY"], sep = "-"))
 data_month<-data.frame(DATE=date_month,import_data_month[,-1:-3])
 
+# small functions
+
+# add the month to a data
+addMonth <- function(date, n = 1){
+  if (n == 0){return(date)}
+  if (n %% 1 != 0){stop("Input Error: argument 'n' must be an integer.")}
+  
+  # Check to make sure we have a standard Date format
+  if (class(date) == "character"){date = as.Date(date)}
+  
+  # Turn the year, month, and day into numbers so we can play with them
+  y = as.numeric(substr(as.character(date),1,4))
+  m = as.numeric(substr(as.character(date),6,7))
+  d = as.numeric(substr(as.character(date),9,10))
+  
+  # Run through the computation
+  i = 0
+  # Adding months
+  if (n > 0){
+    while (i < n){
+      m = m + 1
+      if (m == 13){
+        m = 1
+        y = y + 1
+      }
+      i = i + 1
+    }
+  }
+  # Subtracting months
+  else if (n < 0){
+    while (i > n){
+      m = m - 1
+      if (m == 0){
+        m = 12
+        y = y - 1
+      }
+      i = i - 1
+    }
+  }
+  
+  # If past 28th day in base month, make adjustments for February
+  if (d > 28 & m == 2){
+    # If it's a leap year, return the 29th day
+    if ((y %% 4 == 0 & y %% 100 != 0) | y %% 400 == 0){d = 29}
+    # Otherwise, return the 28th day
+    else{d = 28}
+  }
+  # If 31st day in base month but only 30 days in end month, return 30th day
+  else if (d == 31){if (m %in% c(1, 3, 5, 7, 8, 10, 12) == FALSE){d = 30}}
+  
+  # Turn year, month, and day into strings and put them together to make a Date
+  y = as.character(y)
+  
+  # If month is single digit, add a leading 0, otherwise leave it alone
+  if (m < 10){m = paste('0', as.character(m), sep = '')}
+  else{m = as.character(m)}
+  
+  # If day is single digit, add a leading 0, otherwise leave it alone
+  if (d < 10){d = paste('0', as.character(d), sep = '')}
+  else{d = as.character(d)}
+  
+  # Put them together and convert return the result as a Date
+  return(as.Date(paste(y,'-',m,'-',d, sep = '')))
+}
+
 
 # meta data: (i)
 ##################################
@@ -143,33 +208,39 @@ regress_meta<-cbind(regress_meta,time_type,predict_type)
 
 # prepare data for the midas analyse and forecasting
 
-midas_analyse<-function(data_month,data_quarter,regress_meta){
+info<-function(data_month,data_quarter,regress_meta){
   
+  # find the date for forecasting
+  predict_date<-addMonth(regress_meta$end_date[which(regress_meta$predict_type=="predict")],n=12/regress_meta$time_type[which(regress_meta$predict_type=="predict")])
   
-  quarter_names<-rownames(regress_meta)[regress_meta$type==4]
-  month_names<-rownames(regress_meta)[regress_meta$type==12]
+  if (regress_meta$time_type==4){
+      # clean the quarter data to time series data
+      quarter_names<-rownames(regress_meta)[regress_meta$time_type==4]
+      
+      for (i in 1:length(quarter_names)){
+        data_temp<-change_to_stationary(data_quarter[quarter_names[i]])$stationary_data
+        end_year=as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%y"))
+        end_quarter=ceiling(as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%m"))/3)
+        assign(quarter_names[i],ts(data_temp,end=c(end_year,end_quarter), frequency=regress_meta[quarter_names[i],]$type))
+      }
+  }
   
-  # find the predict interval for X
-  predict_date<-regress_meta$end_date[which(regress_meta$predict_type=="predict")]
+  if (regress_meta$time_type==12){
+    # change month data to time series
+    
+    month_names<-rownames(regress_meta)[regress_meta$time_type==12]
+    for (i in 1:length(month_names)){
+      data_temp<-change_to_stationary(data_month[month_names[i]])$stationary_data
+      end_year=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%y"))
+      end_month=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%m"))
+      assign(month_names[i],ts(data_temp,end=c(end_year,end_month), frequency=regress_meta[month_names[i],]$type))
+    }
+    
+  }
   
   # choose the parameters for every window
   end_month<-regress_meta$end_date[which.min(regress_meta$end_date)]
   start<-regress_meta$start_date[which.max(regress_meta$start_date)]
-  
-  
-  for (i in 1:length(quarter_names)){
-    data_temp<-change_to_stationary(data_quarter[quarter_names[i]])$stationary_data
-    end_year=as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%y"))
-    end_quarter=ceiling(as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%m"))/3)
-    assign(quarter_names[i],ts(data_temp,end=c(end_year,end_quarter), frequency=regress_meta[quarter_names[i],]$type))
-  }
-  
-  for (i in 1:length(month_names)){
-    data_temp<-change_to_stationary(data_month[month_names[i]])$stationary_data
-    end_year=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%y"))
-    end_month=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%m"))
-    assign(month_names[i],ts(data_temp,end=c(end_year,end_month), frequency=regress_meta[month_names[i],]$type))
-  }
   
   
 }
