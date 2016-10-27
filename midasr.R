@@ -208,41 +208,49 @@ regress_meta<-cbind(regress_meta,time_type,predict_type)
 
 # prepare data for the midas analyse and forecasting
 
-info<-function(data_month,data_quarter,regress_meta){
+info<-function(data_month,data_quarter,data_year,regress_meta,predict_step){
   
   # find the date for forecasting
-  predict_date<-addMonth(regress_meta$end_date[which(regress_meta$predict_type=="predict")],n=12/regress_meta$time_type[which(regress_meta$predict_type=="predict")])
+  predict_date<-addMonth(regress_meta$end_date[which(regress_meta$predict_type=="predict")],n=predict_step*12/regress_meta$time_type[which(regress_meta$predict_type=="predict")])
   
-  if (regress_meta$time_type==4){
-      # clean the quarter data to time series data
-      quarter_names<-rownames(regress_meta)[regress_meta$time_type==4]
+  names<-names(regress_meta[,1])
+  num_row<-nrow(regress_meta)
+  predict_num_period<-rep(0,num_row)
+  # find the predict information for every x
+  for (i in 1:num_row){
+     predict_num<-ceiling(difftime(predict_date,regress_meta[i,]$end_date)/(31*12/regress_meta[names[i],]$time_type))
+     if (predict_num>0){
+       predict_num_period[i]<-predict_num
+     }
+  }
+  regress_meta$predict_num_period<-predict_num_period
+  
+  # choose the parameters for windows 
+  end_window<-as.Date(regress_meta$end_date[which.min(regress_meta$end_date)])
+  start_window<-as.Date(regress_meta$start_date[which.max(regress_meta$start_date)])
+  
+  
+  # change all data to time series format
+  data_list<-list()
+  for(i in 1:num_row){
+      type<-regress_meta[i,]$time_type
+      if (type==1){data_temp<-change_to_stationary(data_year[names[i]])$stationary_data
+      } else if(type==4) {data_temp<-change_to_stationary(data_quarter[names[i]])$stationary_data
+      } else {data_temp<-change_to_stationary(data_month[names[i]])$stationary_data}
       
-      for (i in 1:length(quarter_names)){
-        data_temp<-change_to_stationary(data_quarter[quarter_names[i]])$stationary_data
-        end_year=as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%y"))
-        end_quarter=ceiling(as.numeric(format(as.Date(regress_meta[quarter_names[i],]$end_date), "%m"))/3)
-        assign(quarter_names[i],ts(data_temp,end=c(end_year,end_quarter), frequency=regress_meta[quarter_names[i],]$type))
+      end_year<-as.numeric(format(as.Date(regress_meta[i,]$end_date), "%y"))
+      
+      if (type==1){
+        end_other=NULL
+      }else{
+        end_other<-ceiling(as.numeric(format(as.Date(regress_meta[i,]$end_date), "%m"))/(12/type))
+        #assign(names[i],ts(data_temp[!is.na(data_temp)],end=c(end_year,end_other), frequency=type))
       }
-  }
+      data<-ts(data_temp[!is.na(data_temp)],end=c(end_year,end_other), frequency=type)
+      data_list[names[i]]<-data.frame(data)
+   }
   
-  if (regress_meta$time_type==12){
-    # change month data to time series
-    
-    month_names<-rownames(regress_meta)[regress_meta$time_type==12]
-    for (i in 1:length(month_names)){
-      data_temp<-change_to_stationary(data_month[month_names[i]])$stationary_data
-      end_year=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%y"))
-      end_month=as.numeric(format(as.Date(regress_meta[month_names[i],]$end_date), "%m"))
-      assign(month_names[i],ts(data_temp,end=c(end_year,end_month), frequency=regress_meta[month_names[i],]$type))
-    }
-    
-  }
-  
-  # choose the parameters for every window
-  end_month<-regress_meta$end_date[which.min(regress_meta$end_date)]
-  start<-regress_meta$start_date[which.max(regress_meta$start_date)]
-  
-  
+  list(start_window=start_window,end_window=end_window,regress_meta=regress_meta,data_list=data_list)
 }
 
-
+info(data_month,data_quarter,data_year,regress_meta,1)
