@@ -1,9 +1,15 @@
 # midars
 
 #install.packages("xlsx")
+#install.packages("tseries")
+#install.packages("zoo")
+install.packages("midasr")
 
-#library("xlsx")
-#library("readxl")
+library("xlsx")
+library("readxl")
+library("tseries")
+library("zoo")
+library("midasr")
 
 # quarterly data: 
 # YEAR, MONTH, DAY, the name of DATA (column name)
@@ -90,14 +96,9 @@ addMonth <- function(date, n = 1){
 # meta data: (i)
 ##################################
 # return
-
-# start_year
-# start_month
-# start_day
-# end_year
-# end_month
-# end_day
-# type:  1: monthly data, 3: quarterly data, 12: yearly data
+# start_date
+# end_date
+# type:  12: monthly data, 4: quarterly data, 1: yearly data
 ############################################################
 
 
@@ -153,7 +154,7 @@ month_meta<-get_meta_info(data_month)
 quarter_meta<-get_meta_info(data_quarter)
 
 
-# change the data to ts
+# change the data to ts  (did not used in later)
 change_to_ts<-function(single_data){
   
   # get the quarter number of the end data
@@ -174,7 +175,6 @@ change_to_ts<-function(single_data){
   #na_value<-rep(NA,na_num)
   #na_value<-NULL
   ts_data<-ts(single_data[!is.na(single_data)],start = c(single_meta["start_year"],na_num),frequency = single_meta["type"])
-  
   
   return(ts_data)
 }
@@ -205,6 +205,7 @@ regress_meta<-rbind(quarter_meta$meta_info[1,],month_meta$meta_info[1:5,])
 time_type<-c(4,rep(12,5))
 predict_type<-c("predict",rep("explain",5))                     
 regress_meta<-cbind(regress_meta,time_type,predict_type)
+predict_step=1
 
 # prepare data for the midas analyse and forecasting
 
@@ -229,7 +230,6 @@ info<-function(data_month,data_quarter,data_year,regress_meta,predict_step){
   end_window<-as.Date(regress_meta$end_date[which.min(regress_meta$end_date)])
   start_window<-as.Date(regress_meta$start_date[which.max(regress_meta$start_date)])
   
-  
   # change all data to time series format
   data_list<-list()
   for(i in 1:num_row){
@@ -238,7 +238,7 @@ info<-function(data_month,data_quarter,data_year,regress_meta,predict_step){
       } else if(type==4) {data_temp<-change_to_stationary(data_quarter[names[i]])$stationary_data
       } else {data_temp<-change_to_stationary(data_month[names[i]])$stationary_data}
       
-      end_year<-as.numeric(format(as.Date(regress_meta[i,]$end_date), "%y"))
+      end_year<-as.numeric(format(as.Date(regress_meta[i,]$end_date), "%Y"))
       
       if (type==1){
         end_other=NULL
@@ -253,4 +253,56 @@ info<-function(data_month,data_quarter,data_year,regress_meta,predict_step){
   list(start_window=start_window,end_window=end_window,regress_meta=regress_meta,data_list=data_list)
 }
 
-info(data_month,data_quarter,data_year,regress_meta,1)
+info_for_predict<-info(data_month,data_quarter,data_year,regress_meta,1)
+
+midas_model<-function(info_for_predict){
+  
+  # get the format for the start and end date for window function
+  start_qrt<-format(as.yearqtr(info_for_predict$start_window,"%m/%d/%Y"),format="%Y,%q")
+  start_qrt<-c(as.numeric(strsplit(start_qrt, ",")[[1]][1]),as.numeric(strsplit(start_qrt, ",")[[1]][2]))
+  end_qrt<-format(as.yearqtr(info_for_predict$end_window,"%m/%d/%Y"),format="%Y,%q")
+  end_qrt<-c(as.numeric(strsplit(end_qrt, ",")[[1]][1]),as.numeric(strsplit(end_qrt, ",")[[1]][2]))
+  start_month<-format(info_for_predict$start_window,format="%Y,%m")
+  start_month<-c(as.numeric(strsplit(start_month, ",")[[1]][1]),as.numeric(strsplit(start_month, ",")[[1]][2]))
+  end_month<-format(info_for_predict$end_window,format="%Y,%m")
+  end_month<-c(as.numeric(strsplit(end_month, ",")[[1]][1]),as.numeric(strsplit(end_month, ",")[[1]][2]))
+  
+  num_ts=length(info_for_predict$data_list)
+  var_names=names(info_for_predict$data_list)
+  
+  
+  # prepare the data for midas
+  for(i in 1:num_ts){
+    type=info_for_predict$regress_meta["time_type"][names(info_for_predict$data_list[i]),]
+    if(type==12){
+      start_window=start_month
+      end_window=end_month
+      num_na_b<-start_month[2]-1
+      num_na_a<-12-end_month[2]
+    }else if(type==4){
+      start_window=start_qrt 
+      end_window=end_qrt
+      num_na_b<-start_month[2]-1
+      num_na_a<-4-end_month[2]
+    }else {
+      start_window=start_qrt[1]
+      end_window=end_qrt[1]
+      num_na_b<-NULL
+      num_na_a<-NULL
+    }
+    
+    ## try to replan the empty space with NA
+    temp_data<-window(info_for_predict$data_list[[i]],start=start_window,end=end_window)
+    assign(var_names[i],window(info_for_predict$data_list[[i]],start=start_window,end=end_window))
+    
+  }
+  
+  # midas
+  
+  # calcuate the 
+  
+  
+  
+  
+  
+}
