@@ -3,7 +3,7 @@
 #install.packages("xlsx")
 #install.packages("tseries")
 #install.packages("zoo")
-install.packages("midasr")
+#install.packages("midasr")
 
 library("xlsx")
 library("readxl")
@@ -195,7 +195,6 @@ change_to_stationary<-function(single_ts_data){
     p_value<-adf.test(data[!is.na(data)])$p.value
     i<-i+1
   }
-  
   list(diff_order=i, stationary_data=data.frame(data))
 }
 
@@ -234,19 +233,30 @@ info<-function(data_month,data_quarter,data_year,regress_meta,predict_step){
   data_list<-list()
   for(i in 1:num_row){
       type<-regress_meta[i,]$time_type
-      if (type==1){data_temp<-change_to_stationary(data_year[names[i]])$stationary_data
-      } else if(type==4) {data_temp<-change_to_stationary(data_quarter[names[i]])$stationary_data
-      } else {data_temp<-change_to_stationary(data_month[names[i]])$stationary_data}
+      if (type==1){data_temp<-change_to_stationary(data_year[names[i]])
+      } else if(type==4) {data_temp<-change_to_stationary(data_quarter[names[i]])
+      } else {data_temp<-change_to_stationary(data_month[names[i]])}
+      
+      diff<-data_temp$diff_order
+      data_temp<-data_temp$stationary_data
+      
       
       end_year<-as.numeric(format(as.Date(regress_meta[i,]$end_date), "%Y"))
       
+      
       if (type==1){
         end_other=NULL
+        num_na_s=NULL
+        num_na_e=NULL
       }else{
+       
         end_other<-ceiling(as.numeric(format(as.Date(regress_meta[i,]$end_date), "%m"))/(12/type))
+        num_na_s<-as.numeric(format(as.Date(regress_meta[i,]$start_date), "%m"))-1+diff
+        num_na_e<-type-end_other
         #assign(names[i],ts(data_temp[!is.na(data_temp)],end=c(end_year,end_other), frequency=type))
       }
-      data<-ts(data_temp[!is.na(data_temp)],end=c(end_year,end_other), frequency=type)
+      
+      data<-ts( c(rep(NA,num_na_s),data_temp[!is.na(data_temp)],rep(NA,num_na_e)),end=c(end_year,12), frequency=type)
       data_list[names[i]]<-data.frame(data)
    }
   
@@ -277,32 +287,21 @@ midas_model<-function(info_for_predict){
     if(type==12){
       start_window=start_month
       end_window=end_month
-      num_na_b<-start_month[2]-1
-      num_na_a<-12-end_month[2]
     }else if(type==4){
       start_window=start_qrt 
       end_window=end_qrt
-      num_na_b<-start_month[2]-1
-      num_na_a<-4-end_month[2]
     }else {
       start_window=start_qrt[1]
       end_window=end_qrt[1]
-      num_na_b<-NULL
-      num_na_a<-NULL
     }
     
-    ## try to replan the empty space with NA
+    ## try to replan the empty space with NA......
     temp_data<-window(info_for_predict$data_list[[i]],start=start_window,end=end_window)
     assign(var_names[i],window(info_for_predict$data_list[[i]],start=start_window,end=end_window))
     
   }
   
   # midas
-  
-  # calcuate the 
-  
-  
-  
   
   
 }
