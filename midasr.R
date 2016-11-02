@@ -265,7 +265,7 @@ info<-function(data_month,data_quarter,data_year,regress_meta,predict_step){
 
 info_for_predict<-info(data_month,data_quarter,data_year,regress_meta,1)
 
-midas_model<-function(info_for_predict){
+midas_model<-function(info_for_predict,restrication=NULL){
   
   start_window_year=as.numeric(format(info_for_predict$start_window,format="%Y"))
   start_window_month=as.numeric(format(info_for_predict$start_window,format="%m"))
@@ -281,24 +281,24 @@ midas_model<-function(info_for_predict){
   # prepare the data for midas
   for(i in 1:num_ts){
     type=info_for_predict$regress_meta["time_type"][i,]/predict_time_type
-    start=c(start_window_year,floor(start_window_month/type)*type+1)
-    end=c(end_window_year,ceiling(end_window_month/type)*type)
+    
+    # need fix the start window and end window !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    start=c(start_window_year,floor(start_window_month/(12/type))*type)
+    end=c(end_window_year,ceiling(end_window_month/(12/type)))
+    
     assign(var_names[i],window(info_for_predict$data_list[[i]],start=start,end=end))
     diff=ceiling(end_window_month/type)*type-end_window_month
     
     if (info_for_predict$regress_meta["predict_type"][i,]=="predict") {
-      model_express[i]=paste(var_names[i],"~ mls(",var_names[i],",1:5,1)")
+      model_express=paste(var_names[i],"~ mls(",var_names[i],",1:5,1)")
     }else {
-      model_express[i]=paste("+mls(",var_names[i],",",diff,":",type-diff,type,")")
+      model_express=paste(model_express,"+mls(",var_names[i],",",diff,":",type-diff,",",type,",",restrication,")")
     }
+    
   }
   
-  
-  
-  
-  
-  
-  }
+  model=midas_r(parse(text = model_express),start=NULL)
+}
   
   # midas
   
