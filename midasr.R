@@ -267,41 +267,39 @@ info_for_predict<-info(data_month,data_quarter,data_year,regress_meta,1)
 
 midas_model<-function(info_for_predict){
   
-  # get the format for the start and end date for window function
-  start_qrt<-format(as.yearqtr(info_for_predict$start_window,"%m/%d/%Y"),format="%Y,%q")
-  start_qrt<-c(as.numeric(strsplit(start_qrt, ",")[[1]][1]),as.numeric(strsplit(start_qrt, ",")[[1]][2]))
-  end_qrt<-format(as.yearqtr(info_for_predict$end_window,"%m/%d/%Y"),format="%Y,%q")
-  end_qrt<-c(as.numeric(strsplit(end_qrt, ",")[[1]][1]),as.numeric(strsplit(end_qrt, ",")[[1]][2]))
-  start_month<-format(info_for_predict$start_window,format="%Y,%m")
-  start_month<-c(as.numeric(strsplit(start_month, ",")[[1]][1]),as.numeric(strsplit(start_month, ",")[[1]][2]))
-  end_month<-format(info_for_predict$end_window,format="%Y,%m")
-  end_month<-c(as.numeric(strsplit(end_month, ",")[[1]][1]),as.numeric(strsplit(end_month, ",")[[1]][2]))
+  start_window_year=as.numeric(format(info_for_predict$start_window,format="%Y"))
+  start_window_month=as.numeric(format(info_for_predict$start_window,format="%m"))
+  end_window_year=as.numeric(format(info_for_predict$end_window,format="%Y"))
+  end_window_month=as.numeric(format(info_for_predict$end_window,format="%m"))
+
+  predict_time_type=info_for_predict$regress_meta["time_type"][which(info_for_predict$regress_meta["predict_type"]=="predict"),]
   
   num_ts=length(info_for_predict$data_list)
   var_names=names(info_for_predict$data_list)
   
-  
+  model_express=rep(0,num_ts)
   # prepare the data for midas
   for(i in 1:num_ts){
-    type=info_for_predict$regress_meta["time_type"][names(info_for_predict$data_list[i]),]
-    if(type==12){
-      start_window=start_month
-      end_window=end_month
-    }else if(type==4){
-      start_window=start_qrt 
-      end_window=end_qrt
+    type=info_for_predict$regress_meta["time_type"][i,]/predict_time_type
+    start=c(start_window_year,floor(start_window_month/type)*type+1)
+    end=c(end_window_year,ceiling(end_window_month/type)*type)
+    assign(var_names[i],window(info_for_predict$data_list[[i]],start=start,end=end))
+    diff=ceiling(end_window_month/type)*type-end_window_month
+    
+    if (info_for_predict$regress_meta["predict_type"][i,]=="predict") {
+      model_express[i]=paste(var_names[i],"~ mls(",var_names[i],",1:5,1)")
     }else {
-      start_window=start_qrt[1]
-      end_window=end_qrt[1]
+      model_express[i]=paste("+mls(",var_names[i],",",diff,":",type-diff,type,")")
     }
-    
-    ## try to replan the empty space with NA......
-    temp_data<-window(info_for_predict$data_list[[i]],start=start_window,end=end_window)
-    assign(var_names[i],window(info_for_predict$data_list[[i]],start=start_window,end=end_window))
-    
+  }
+  
+  
+  
+  
+  
+  
   }
   
   # midas
   
-  
-}
+
