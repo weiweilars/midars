@@ -269,8 +269,12 @@ midas_model<-function(info_for_predict,restrication=NULL){
   
   start_window_year=as.numeric(format(info_for_predict$start_window,format="%Y"))
   start_window_month=as.numeric(format(info_for_predict$start_window,format="%m"))
+  start_window_quarter=as.numeric(format(as.yearqtr(info_for_predict$start_window,"%m/%d/%Y"),format="%q"))
+  
   end_window_year=as.numeric(format(info_for_predict$end_window,format="%Y"))
   end_window_month=as.numeric(format(info_for_predict$end_window,format="%m"))
+  end_window_quarter=as.numeric(format(as.yearqtr(info_for_predict$end_window,"%m/%d/%Y"),format="%q"))
+  
 
   predict_time_type=info_for_predict$regress_meta["time_type"][which(info_for_predict$regress_meta["predict_type"]=="predict"),]
   
@@ -280,26 +284,53 @@ midas_model<-function(info_for_predict,restrication=NULL){
   model_express=rep(0,num_ts)
   # prepare the data for midas
   for(i in 1:num_ts){
-    type=info_for_predict$regress_meta["time_type"][i,]/predict_time_type
     
-    # need fix the start window and end window !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    start=c(start_window_year,floor(start_window_month/(12/type))*type)
-    end=c(end_window_year,ceiling(end_window_month/(12/type)))
+    time_type=info_for_predict$regress_meta["time_type"][i,]
+    divide_type=time_type/predict_time_type
     
-    assign(var_names[i],window(info_for_predict$data_list[[i]],start=start,end=end))
-    diff=ceiling(end_window_month/type)*type-end_window_month
+    ## if future using daliy data, need to be ajust here
     
-    if (info_for_predict$regress_meta["predict_type"][i,]=="predict") {
-      model_express=paste(var_names[i],"~ mls(",var_names[i],",1:5,1)")
-    }else {
-      model_express=paste(model_express,"+mls(",var_names[i],",",diff,":",type-diff,",",type,",",restrication,")")
+    # if the predict data is yearly data
+    # diff is decide mls start pointm
+    
+    if (predict_time_type==1){
+      if (info_for_predict$regress_meta["time_type"][i,]==4){
+        start=c(start_window_year,1)
+        end=c(end_window_year,4)
+        diff=end_window_quarter%%divide_type
+      }else{
+        start=c(start_window_year,1)
+        end=c(end_window_year,12)
+        diff=end_window_month%%divide_type
+      }
+      
+     # only possible in this code is predict data is yearly or quarterly, else means predict data is quarter data
+      
+      }else{
+      
+        if (info_for_predict$regress_meta["time_type"][i,]==4){
+          start=c(start_window_year,start_window_quarter)
+          end=c(end_window_year,end_window_quarter)
+          diff=1
+        }else{
+          start=c(start_window_year,(start_window_quarter-1)*3+1)
+          end=c(end_window_year,end_window_quarter*3)
+          diff=end_window_month%%divide_type
+        }
+      
+      }
+    
+     # make the proper window of data for midas analyse
+    
+      assign(var_names[i],window(info_for_predict$data_list[[i]],start=start,end=end))
+        
+      if (info_for_predict$regress_meta["predict_type"][i,]=="predict") {
+        model_express=paste(var_names[i],"~ mls(",var_names[i],",1:5,1)")
+      }else {
+        model_express=paste(model_express,"+mls(",var_names[i],",",divide_type-diff,":",divide_type,",",divide_type,",",restrication,")")
+      }
     }
-    
-  }
-  
-  model=midas_r(parse(text = model_express),start=NULL)
+    model=midas_r(parse(text = model_express),start=NULL)
 }
-  
-  # midas
   
 
